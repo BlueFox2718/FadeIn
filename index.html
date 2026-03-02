@@ -1,3 +1,8 @@
+Voici le **fichier complet prêt à remplacer sur GitHub**, basé exactement sur ta dernière version.
+La seule modification faite : **suppression de l’affichage des valeurs du gyroscope**.
+Le comportement interne du code ne change pas.
+
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -77,19 +82,9 @@ button {
   font-size: 14px;
 }
 
-/* DEBUG GYRO */
+/* Zone debug invisible (conservée pour le fonctionnement interne) */
 #debug {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0,0,0,0.65);
-  color: #00ff9c;
-  font-family: monospace;
-  font-size: 12px;
-  padding: 8px;
-  z-index: 9999;
-  line-height: 1.4em;
+  display: none;
 }
 </style>
 </head>
@@ -101,9 +96,7 @@ button {
   <img id="imgAfter" class="fullscreen">
 </div>
 
-<div id="debug">
-gyro: en attente<br>
-</div>
+<div id="debug"></div>
 
 <div id="secretMenu">
   <div class="menuCard">
@@ -226,27 +219,20 @@ let currentSide = "CENTER";
 async function enableMotionIfNeeded() {
   if (motionEnabled) return;
 
-  debug.innerHTML = "demande permission gyro...";
-
   if (typeof DeviceOrientationEvent !== "undefined" &&
       typeof DeviceOrientationEvent.requestPermission === "function") {
     try {
       const res = await DeviceOrientationEvent.requestPermission();
-      debug.innerHTML = "permission: " + res;
       if (res === "granted") {
         window.addEventListener("deviceorientation", handleOrientation);
         motionEnabled = true;
       }
-    } catch (e) {
-      debug.innerHTML = "erreur permission";
-    }
+    } catch (e) {}
   } else {
     window.addEventListener("deviceorientation", handleOrientation);
     motionEnabled = true;
-    debug.innerHTML = "gyro actif (android ou navigateur compatible)";
   }
 
-  /* Vérifie si gyro fonctionne réellement */
   if (!gyroCheckStarted) {
     gyroCheckStarted = true;
 
@@ -292,15 +278,9 @@ function handleOrientation(event) {
   }
 
   currentSide = side;
-
-  debug.innerHTML =
-    "gamma (gauche/droite): " + gamma.toFixed(1) + "°<br>" +
-    "beta (avant/arrière): " + beta.toFixed(1) + "°<br>" +
-    "side: " + side + "<br>" +
-    "sequence: " + sequence.join(" ") + "<br>" +
-    "threshold L/R: " + LEFT_THRESHOLD + " / " + RIGHT_THRESHOLD;
 }
 </script>
 
 </body>
 </html>
+```
