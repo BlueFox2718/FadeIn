@@ -17,7 +17,6 @@ html, body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Zone d'affichage */
 #viewer {
   position: fixed;
   inset: 0;
@@ -56,17 +55,6 @@ img.fullscreen {
   max-width: 420px;
 }
 
-label {
-  display: block;
-  margin-top: 16px;
-  font-size: 14px;
-}
-
-input[type=file] {
-  width: 100%;
-  margin-top: 6px;
-}
-
 button {
   margin-top: 20px;
   width: 100%;
@@ -77,6 +65,21 @@ button {
   background: #2ecc71;
   color: white;
 }
+
+/* DEBUG GYRO */
+#debug {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.65);
+  color: #00ff9c;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  z-index: 9999;
+  line-height: 1.4em;
+}
 </style>
 </head>
 
@@ -85,6 +88,10 @@ button {
 <div id="viewer">
   <img id="imgBefore" class="fullscreen">
   <img id="imgAfter" class="fullscreen">
+</div>
+
+<div id="debug">
+gyro: en attente<br>
 </div>
 
 <div id="secretMenu">
@@ -106,10 +113,11 @@ const STORAGE_AFTER  = "image_after";
 const imgBefore = document.getElementById("imgBefore");
 const imgAfter = document.getElementById("imgAfter");
 const menu = document.getElementById("secretMenu");
+const debug = document.getElementById("debug");
 
 let showingAfter = false;
 
-/* Charger depuis localStorage */
+/* Charger images */
 function loadImages() {
   const before = localStorage.getItem(STORAGE_BEFORE);
   const after = localStorage.getItem(STORAGE_AFTER);
@@ -117,20 +125,15 @@ function loadImages() {
   if (before && after) {
     imgBefore.src = before;
     imgAfter.src = after;
-  } else {
-    imgBefore.src = "";
-    imgAfter.src = "";
   }
 }
 loadImages();
 
-/* Double tap pour menu secret */
+/* Double tap */
 let lastTap = 0;
 document.addEventListener("touchend", () => {
   const now = Date.now();
-  if (now - lastTap < 350) {
-    openMenu();
-  }
+  if (now - lastTap < 350) openMenu();
   lastTap = now;
 });
 
@@ -142,7 +145,7 @@ function closeMenu() {
   menu.style.display = "none";
 }
 
-/* Upload images */
+/* Upload */
 document.getElementById("saveBtn").addEventListener("click", async () => {
   const beforeFile = document.getElementById("beforeInput").files[0];
   const afterFile = document.getElementById("afterInput").files[0];
@@ -172,8 +175,6 @@ function fileToBase64(file) {
 
 /* Transition */
 function switchImages() {
-  if (!imgBefore.src || !imgAfter.src) return;
-
   showingAfter = !showingAfter;
 
   if (showingAfter) {
@@ -185,68 +186,78 @@ function switchImages() {
   }
 }
 
-/* Gyroscope logic */
+/* Gyroscope */
 let motionEnabled = false;
 let sequence = [];
-let lastTriggerTime = 0;
+let lastStepTime = 0;
 
-const LEFT_THRESHOLD = -35;
-const RIGHT_THRESHOLD = 35;
-const MAX_STEP_DELAY = 1500;
+const LEFT_THRESHOLD = -30;
+const RIGHT_THRESHOLD = 30;
+const TIME_RESET = 2000;
+
+let currentSide = "CENTER";
 
 async function enableMotionIfNeeded() {
   if (motionEnabled) return;
+
+  debug.innerHTML = "demande permission gyro...";
 
   if (typeof DeviceOrientationEvent !== "undefined" &&
       typeof DeviceOrientationEvent.requestPermission === "function") {
     try {
       const res = await DeviceOrientationEvent.requestPermission();
+      debug.innerHTML = "permission: " + res;
       if (res === "granted") {
         window.addEventListener("deviceorientation", handleOrientation);
         motionEnabled = true;
       }
-    } catch {}
+    } catch (e) {
+      debug.innerHTML = "erreur permission";
+    }
   } else {
     window.addEventListener("deviceorientation", handleOrientation);
     motionEnabled = true;
+    debug.innerHTML = "gyro actif (android ou navigateur compatible)";
   }
 }
 
 document.addEventListener("touchstart", enableMotionIfNeeded);
 
-/* Détection gauche/droite uniquement */
 function handleOrientation(event) {
-  const gamma = event.gamma; // inclinaison gauche/droite
+  const gamma = event.gamma ?? 0;
+  const beta = event.beta ?? 0;
   const now = Date.now();
 
-  if (now - lastTriggerTime > MAX_STEP_DELAY) {
+  let side = "CENTER";
+  if (gamma < LEFT_THRESHOLD) side = "L";
+  else if (gamma > RIGHT_THRESHOLD) side = "R";
+
+  if (now - lastStepTime > TIME_RESET) {
     sequence = [];
   }
 
-  let direction = null;
+  if (side !== currentSide && (side === "L" || side === "R")) {
+    sequence.push(side);
+    lastStepTime = now;
 
-  if (gamma < LEFT_THRESHOLD) direction = "L";
-  if (gamma > RIGHT_THRESHOLD) direction = "R";
+    if (sequence.length > 6) sequence.shift();
 
-  if (!direction) return;
-
-  const last = sequence[sequence.length - 1];
-  if (direction === last) return;
-
-  sequence.push(direction);
-  lastTriggerTime = now;
-
-  if (sequence.length > 6) {
-    sequence.shift();
+    const target = ["L","R","L","R","L","R"];
+    if (sequence.length === 6 &&
+        sequence.every((v,i)=>v===target[i])) {
+      sequence = [];
+      switchImages();
+    }
   }
 
-  const target = ["L","R","L","R","L","R"];
+  currentSide = side;
 
-  if (sequence.length === 6 &&
-      sequence.every((v,i)=>v===target[i])) {
-    sequence = [];
-    switchImages();
-  }
+  debug.innerHTML =
+    "gamma (gauche/droite): " + gamma.toFixed(1) + "°<br>" +
+    "beta (avant/arrière): " + beta.toFixed(1) + "°<br>" +
+    "side: " + side + "<br>" +
+    "sequence: " + sequence.join(" ") + "<br>" +
+    "threshold L/R: " + LEFT_THRESHOLD + " / " + RIGHT_THRESHOLD;
 }
 </script>
 
