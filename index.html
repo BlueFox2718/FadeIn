@@ -2,87 +2,94 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Before After Motion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Before / After</title>
 
 <style>
-html,body{
-margin:0;
-background:black;
-height:100%;
-overflow:hidden;
-font-family:system-ui;
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  touch-action: manipulation;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
-#viewer{
-position:fixed;
-inset:0;
-display:flex;
-align-items:center;
-justify-content:center;
+#viewer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: black;
 }
 
-img{
-position:absolute;
-max-width:100vw;
-max-height:100vh;
-object-fit:contain;
-transition:opacity .6s;
+img.fullscreen {
+  position: absolute;
+  max-width: 100vw;
+  max-height: 100vh;
+  object-fit: contain;
+  transition: opacity 600ms ease;
 }
 
-#after{opacity:0}
+#imgBefore { opacity: 1; }
+#imgAfter  { opacity: 0; }
 
-#menu{
-position:fixed;
-inset:0;
-background:#000000ee;
-display:none;
-align-items:center;
-justify-content:center;
-color:white;
-padding:20px;
+/* Menu secret */
+#secretMenu {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  color: white;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
-#menuBox{
-max-width:420px;
-width:100%;
+.menuCard {
+  width: 100%;
+  max-width: 420px;
 }
 
-button{
-width:100%;
-padding:14px;
-margin-top:15px;
-border:none;
-border-radius:10px;
-background:#2ecc71;
-color:white;
-font-size:16px;
+button {
+  margin-top: 20px;
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  border-radius: 12px;
+  border: none;
+  background: #2ecc71;
+  color: white;
 }
 
-#debug{
-position:fixed;
-top:0;
-left:0;
-right:0;
-background:#000c;
-color:#00ffa2;
-font-family:monospace;
-font-size:12px;
-padding:6px;
-z-index:9999;
+/* Message gyroscope */
+#gyroWarning {
+  display: none;
+  background: #ffcc00;
+  color: black;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 14px;
 }
 
-#help{
-position:fixed;
-inset:0;
-background:#000000f0;
-color:white;
-display:none;
-align-items:center;
-justify-content:center;
-padding:25px;
-text-align:center;
-z-index:10000;
+/* DEBUG GYRO */
+#debug {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.65);
+  color: #00ff9c;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  z-index: 9999;
+  line-height: 1.4em;
 }
 </style>
 </head>
@@ -90,251 +97,209 @@ z-index:10000;
 <body>
 
 <div id="viewer">
-<img id="before">
-<img id="after">
+  <img id="imgBefore" class="fullscreen">
+  <img id="imgAfter" class="fullscreen">
 </div>
 
-<div id="debug">initialisation…</div>
-
-<div id="menu">
-<div id="menuBox">
-<label>Image avant</label>
-<input type="file" id="inputBefore" accept="image/*">
-<label>Image après</label>
-<input type="file" id="inputAfter" accept="image/*">
-<button id="save">Valider</button>
-</div>
+<div id="debug">
+gyro: en attente<br>
 </div>
 
-<div id="help">
-<div>
-<h2>Autorisation capteurs nécessaire</h2>
-<p id="helpText"></p>
-<button onclick="retrySensors()">Activer les capteurs</button>
-</div>
+<div id="secretMenu">
+  <div class="menuCard">
+
+    <div id="gyroWarning">
+      Attention, le gyroscope n'est pas activé sur cette page web.
+      Merci de donner les autorisations nécessaires dans les paramètres de votre navigateur / téléphone.
+    </div>
+
+    <label>Image avant</label>
+    <input type="file" id="beforeInput" accept="image/*">
+
+    <label>Image après</label>
+    <input type="file" id="afterInput" accept="image/*">
+
+    <button id="saveBtn">Valider</button>
+  </div>
 </div>
 
 <script>
-const STORAGE_BEFORE="img_before";
-const STORAGE_AFTER="img_after";
+const STORAGE_BEFORE = "image_before";
+const STORAGE_AFTER  = "image_after";
 
-const imgBefore=document.getElementById("before");
-const imgAfter=document.getElementById("after");
-const debug=document.getElementById("debug");
+const imgBefore = document.getElementById("imgBefore");
+const imgAfter = document.getElementById("imgAfter");
+const menu = document.getElementById("secretMenu");
+const debug = document.getElementById("debug");
+const gyroWarning = document.getElementById("gyroWarning");
 
-let showingAfter=false;
+let showingAfter = false;
 
-/* =======================
-   LOAD IMAGES
-======================= */
+/* Détection gyro */
+let gyroDetected = false;
+let gyroCheckStarted = false;
 
-function loadImages(){
-const b=localStorage.getItem(STORAGE_BEFORE);
-const a=localStorage.getItem(STORAGE_AFTER);
-if(b&&a){
-imgBefore.src=b;
-imgAfter.src=a;
-}
+/* Charger images */
+function loadImages() {
+  const before = localStorage.getItem(STORAGE_BEFORE);
+  const after = localStorage.getItem(STORAGE_AFTER);
+
+  if (before && after) {
+    imgBefore.src = before;
+    imgAfter.src = after;
+  }
 }
 loadImages();
 
-/* =======================
-   SECRET MENU
-======================= */
-
-let lastTap=0;
-document.addEventListener("touchend",()=>{
-const now=Date.now();
-if(now-lastTap<350){
-document.getElementById("menu").style.display="flex";
-}
-lastTap=now;
+/* Double tap */
+let lastTap = 0;
+document.addEventListener("touchend", () => {
+  const now = Date.now();
+  if (now - lastTap < 350) openMenu();
+  lastTap = now;
 });
 
-document.getElementById("save").onclick=async()=>{
-const b=document.getElementById("inputBefore").files[0];
-const a=document.getElementById("inputAfter").files[0];
-if(!b||!a)return alert("Choisir deux images");
+function openMenu() {
+  menu.style.display = "flex";
 
-const b64=await toBase64(b);
-const a64=await toBase64(a);
+  if (!gyroDetected) {
+    gyroWarning.style.display = "block";
+  }
+}
 
-localStorage.setItem(STORAGE_BEFORE,b64);
-localStorage.setItem(STORAGE_AFTER,a64);
+function closeMenu() {
+  menu.style.display = "none";
+}
 
-loadImages();
-document.getElementById("menu").style.display="none";
-};
+/* Upload */
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  const beforeFile = document.getElementById("beforeInput").files[0];
+  const afterFile = document.getElementById("afterInput").files[0];
 
-function toBase64(file){
-return new Promise(r=>{
-const reader=new FileReader();
-reader.onload=()=>r(reader.result);
-reader.readAsDataURL(file);
+  if (!beforeFile || !afterFile) {
+    alert("Choisir les deux images.");
+    return;
+  }
+
+  const beforeData = await fileToBase64(beforeFile);
+  const afterData = await fileToBase64(afterFile);
+
+  localStorage.setItem(STORAGE_BEFORE, beforeData);
+  localStorage.setItem(STORAGE_AFTER, afterData);
+
+  loadImages();
+  closeMenu();
 });
+
+function fileToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
 }
 
-/* =======================
-   IMAGE SWITCH
-======================= */
+/* Transition */
+function switchImages() {
+  showingAfter = !showingAfter;
 
-function switchImages(){
-showingAfter=!showingAfter;
-imgBefore.style.opacity=showingAfter?0:1;
-imgAfter.style.opacity=showingAfter?1:0;
+  if (showingAfter) {
+    imgBefore.style.opacity = 0;
+    imgAfter.style.opacity = 1;
+  } else {
+    imgBefore.style.opacity = 1;
+    imgAfter.style.opacity = 0;
+  }
 }
 
-/* =======================
-   SENSOR SYSTEM
-======================= */
+/* Gyroscope */
+let motionEnabled = false;
+let sequence = [];
+let lastStepTime = 0;
 
-let orientationActive=false;
-let motionActive=false;
+const LEFT_THRESHOLD = -30;
+const RIGHT_THRESHOLD = 30;
+const TIME_RESET = 2000;
 
-let gamma=0;
-let accelX=0;
+let currentSide = "CENTER";
 
-let seq=[];
-let lastStep=0;
+async function enableMotionIfNeeded() {
+  if (motionEnabled) return;
 
-const ANGLE=28;
-const RESET_TIME=1800;
+  debug.innerHTML = "demande permission gyro...";
 
-function updateSequence(dir){
-const now=Date.now();
-if(now-lastStep>RESET_TIME) seq=[];
-lastStep=now;
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function") {
+    try {
+      const res = await DeviceOrientationEvent.requestPermission();
+      debug.innerHTML = "permission: " + res;
+      if (res === "granted") {
+        window.addEventListener("deviceorientation", handleOrientation);
+        motionEnabled = true;
+      }
+    } catch (e) {
+      debug.innerHTML = "erreur permission";
+    }
+  } else {
+    window.addEventListener("deviceorientation", handleOrientation);
+    motionEnabled = true;
+    debug.innerHTML = "gyro actif (android ou navigateur compatible)";
+  }
 
-const last=seq[seq.length-1];
-if(last===dir) return;
+  /* Vérifie si gyro fonctionne réellement */
+  if (!gyroCheckStarted) {
+    gyroCheckStarted = true;
 
-seq.push(dir);
-if(seq.length>6) seq.shift();
-
-if(seq.join("")==="LRLRLR"){
-seq=[];
-switchImages();
-}
-}
-
-function handleOrientation(e){
-gamma=e.gamma||0;
-detectSide();
-}
-
-function handleMotion(e){
-if(!e.accelerationIncludingGravity)return;
-accelX=e.accelerationIncludingGravity.x||0;
-
-if(Math.abs(accelX)>4){
-const dir=accelX>0?"R":"L";
-updateSequence(dir);
-}
+    setTimeout(() => {
+      if (!gyroDetected) {
+        gyroWarning.style.display = "block";
+      }
+    }, 3000);
+  }
 }
 
-function detectSide(){
-let side="C";
-if(gamma<-ANGLE) side="L";
-if(gamma>ANGLE) side="R";
+document.addEventListener("touchstart", enableMotionIfNeeded);
 
-if(side==="L"||side==="R"){
-updateSequence(side);
+function handleOrientation(event) {
+  const gamma = event.gamma ?? 0;
+  const beta = event.beta ?? 0;
+  const now = Date.now();
+
+  if (Math.abs(gamma) > 0.1 || Math.abs(beta) > 0.1) {
+    gyroDetected = true;
+  }
+
+  let side = "CENTER";
+  if (gamma < LEFT_THRESHOLD) side = "L";
+  else if (gamma > RIGHT_THRESHOLD) side = "R";
+
+  if (now - lastStepTime > TIME_RESET) {
+    sequence = [];
+  }
+
+  if (side !== currentSide && (side === "L" || side === "R")) {
+    sequence.push(side);
+    lastStepTime = now;
+
+    if (sequence.length > 6) sequence.shift();
+
+    const target = ["L","R","L","R","L","R"];
+    if (sequence.length === 6 &&
+        sequence.every((v,i)=>v===target[i])) {
+      sequence = [];
+      switchImages();
+    }
+  }
+
+  currentSide = side;
+
+  debug.innerHTML =
+    "gamma (gauche/droite): " + gamma.toFixed(1) + "°<br>" +
+    "beta (avant/arrière): " + beta.toFixed(1) + "°<br>" +
+    "side: " + side + "<br>" +
+    "sequence: " + sequence.join(" ") + "<br>" +
+    "threshold L/R: " + LEFT_THRESHOLD + " / " + RIGHT_THRESHOLD;
 }
-}
-
-/* =======================
-   PERMISSION SYSTEM
-======================= */
-
-async function enableSensors(){
-
-debug.innerHTML="demande capteurs…";
-
-try{
-
-if(typeof DeviceOrientationEvent!=="undefined" &&
-typeof DeviceOrientationEvent.requestPermission==="function"){
-
-const res=await DeviceOrientationEvent.requestPermission();
-if(res==="granted"){
-window.addEventListener("deviceorientation",handleOrientation);
-orientationActive=true;
-}
-
-}else{
-window.addEventListener("deviceorientation",handleOrientation);
-orientationActive=true;
-}
-
-}catch(e){}
-
-/* fallback motion */
-
-try{
-window.addEventListener("devicemotion",handleMotion);
-motionActive=true;
-}catch(e){}
-
-startSensorWatchdog();
-}
-
-document.addEventListener("touchstart",enableSensors,{once:true});
-
-function retrySensors(){
-document.getElementById("help").style.display="none";
-enableSensors();
-}
-
-/* =======================
-   SENSOR WATCHDOG
-======================= */
-
-let sensorStarted=false;
-let sensorTimer;
-
-function startSensorWatchdog(){
-sensorStarted=true;
-sensorTimer=setTimeout(()=>{
-if(Math.abs(gamma)<1 && Math.abs(accelX)<0.5){
-showHelp();
-}
-},3000);
-}
-
-function showHelp(){
-const help=document.getElementById("help");
-const text=document.getElementById("helpText");
-
-const ua=navigator.userAgent;
-
-if(/iPhone|iPad/.test(ua)){
-text.innerHTML=
-"Active : Réglages iOS → Safari → Mouvement et orientation";
-}
-else if(ua.includes("Brave")){
-text.innerHTML=
-"Dans Brave : icône paramètres du site → Autoriser capteurs / mouvement.";
-}
-else{
-text.innerHTML=
-"Autorise les capteurs pour ce site dans les paramètres du navigateur.";
-}
-
-help.style.display="flex";
-}
-
-/* =======================
-   DEBUG
-======================= */
-
-setInterval(()=>{
-debug.innerHTML=
-"gamma: "+gamma.toFixed(1)+"°<br>"+
-"accelX: "+accelX.toFixed(2)+"<br>"+
-"orientationActive: "+orientationActive+"<br>"+
-"motionActive: "+motionActive+"<br>"+
-"sequence: "+seq.join("");
-},100);
 </script>
 
 </body>
