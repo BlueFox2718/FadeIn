@@ -1,90 +1,79 @@
-Voici le **fichier complet prêt à remplacer sur GitHub**, basé exactement sur ta dernière version.
-La seule modification faite : **suppression de l’affichage des valeurs du gyroscope**.
-Le comportement interne du code ne change pas.
-
-```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Before / After</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Shake Switch</title>
 
 <style>
 html, body {
-  margin: 0;
-  padding: 0;
-  background: black;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  touch-action: manipulation;
-  font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: black;
+    height: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+    font-family: sans-serif;
 }
 
 #viewer {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: black;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: black;
 }
 
-img.fullscreen {
-  position: absolute;
-  max-width: 100vw;
-  max-height: 100vh;
-  object-fit: contain;
-  transition: opacity 600ms ease;
+img.display {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transition: opacity 0.6s ease;
 }
 
-#imgBefore { opacity: 1; }
-#imgAfter  { opacity: 0; }
+#imgAfter {
+    opacity: 0;
+}
 
-/* Menu secret */
 #secretMenu {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.92);
-  color: white;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    color: white;
+    display: none;
+    z-index: 10;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
-.menuCard {
-  width: 100%;
-  max-width: 420px;
+.menuBox {
+    max-width: 420px;
+    margin: auto;
+    margin-top: 10vh;
+}
+
+input, button {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    font-size: 16px;
 }
 
 button {
-  margin-top: 20px;
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
-  border-radius: 12px;
-  border: none;
-  background: #2ecc71;
-  color: white;
+    cursor: pointer;
 }
 
-/* Message gyroscope */
-#gyroWarning {
-  display: none;
-  background: #ffcc00;
-  color: black;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 15px;
-  font-size: 14px;
-}
-
-/* Zone debug invisible (conservée pour le fonctionnement interne) */
-#debug {
-  display: none;
+#permissionBox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    color: white;
+    display: none;
+    z-index: 20;
+    text-align: center;
+    padding: 30px;
 }
 </style>
 </head>
@@ -92,195 +81,190 @@ button {
 <body>
 
 <div id="viewer">
-  <img id="imgBefore" class="fullscreen">
-  <img id="imgAfter" class="fullscreen">
+    <img id="imgBefore" class="display">
+    <img id="imgAfter" class="display">
 </div>
 
-<div id="debug"></div>
-
 <div id="secretMenu">
-  <div class="menuCard">
+    <div class="menuBox">
+        <h2>Menu secret</h2>
 
-    <div id="gyroWarning">
-      Attention, le gyroscope n'est pas activé sur cette page web.
-      Merci de donner les autorisations nécessaires dans les paramètres de votre navigateur / téléphone.
+        <label>Image avant</label>
+        <input type="file" id="beforeInput" accept="image/*">
+
+        <label>Image après</label>
+        <input type="file" id="afterInput" accept="image/*">
+
+        <button id="validateBtn">Valider</button>
+        <button id="cancelBtn">Annuler</button>
     </div>
+</div>
 
-    <label>Image avant</label>
-    <input type="file" id="beforeInput" accept="image/*">
-
-    <label>Image après</label>
-    <input type="file" id="afterInput" accept="image/*">
-
-    <button id="saveBtn">Valider</button>
-  </div>
+<div id="permissionBox">
+    <h2>Autorisation requise</h2>
+    <p>Le navigateur bloque l'accès aux capteurs de mouvement.</p>
+    <button id="enableMotion">Autoriser les capteurs</button>
 </div>
 
 <script>
 const STORAGE_BEFORE = "image_before";
-const STORAGE_AFTER  = "image_after";
+const STORAGE_AFTER = "image_after";
 
 const imgBefore = document.getElementById("imgBefore");
 const imgAfter = document.getElementById("imgAfter");
-const menu = document.getElementById("secretMenu");
-const debug = document.getElementById("debug");
-const gyroWarning = document.getElementById("gyroWarning");
+const secretMenu = document.getElementById("secretMenu");
+const permissionBox = document.getElementById("permissionBox");
 
 let showingAfter = false;
 
-/* Détection gyro */
-let gyroDetected = false;
-let gyroCheckStarted = false;
-
-/* Charger images */
+// Charger images depuis localStorage
 function loadImages() {
-  const before = localStorage.getItem(STORAGE_BEFORE);
-  const after = localStorage.getItem(STORAGE_AFTER);
+    const before = localStorage.getItem(STORAGE_BEFORE);
+    const after = localStorage.getItem(STORAGE_AFTER);
 
-  if (before && after) {
-    imgBefore.src = before;
-    imgAfter.src = after;
-  }
+    if (before && after) {
+        imgBefore.src = before;
+        imgAfter.src = after;
+    }
 }
 loadImages();
 
-/* Double tap */
-let lastTap = 0;
-document.addEventListener("touchend", () => {
-  const now = Date.now();
-  if (now - lastTap < 350) openMenu();
-  lastTap = now;
-});
-
-function openMenu() {
-  menu.style.display = "flex";
-
-  if (!gyroDetected) {
-    gyroWarning.style.display = "block";
-  }
-}
-
-function closeMenu() {
-  menu.style.display = "none";
-}
-
-/* Upload */
-document.getElementById("saveBtn").addEventListener("click", async () => {
-  const beforeFile = document.getElementById("beforeInput").files[0];
-  const afterFile = document.getElementById("afterInput").files[0];
-
-  if (!beforeFile || !afterFile) {
-    alert("Choisir les deux images.");
-    return;
-  }
-
-  const beforeData = await fileToBase64(beforeFile);
-  const afterData = await fileToBase64(afterFile);
-
-  localStorage.setItem(STORAGE_BEFORE, beforeData);
-  localStorage.setItem(STORAGE_AFTER, afterData);
-
-  loadImages();
-  closeMenu();
-});
-
+// Upload images
 function fileToBase64(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(file);
-  });
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
-/* Transition */
-function switchImages() {
-  showingAfter = !showingAfter;
+document.getElementById("validateBtn").onclick = async () => {
+    const beforeFile = document.getElementById("beforeInput").files[0];
+    const afterFile = document.getElementById("afterInput").files[0];
 
-  if (showingAfter) {
-    imgBefore.style.opacity = 0;
-    imgAfter.style.opacity = 1;
-  } else {
-    imgBefore.style.opacity = 1;
-    imgAfter.style.opacity = 0;
-  }
+    if (beforeFile) {
+        const data = await fileToBase64(beforeFile);
+        localStorage.setItem(STORAGE_BEFORE, data);
+    }
+
+    if (afterFile) {
+        const data = await fileToBase64(afterFile);
+        localStorage.setItem(STORAGE_AFTER, data);
+    }
+
+    loadImages();
+    secretMenu.style.display = "none";
+};
+
+document.getElementById("cancelBtn").onclick = () => {
+    secretMenu.style.display = "none";
+};
+
+// Double tap detection
+let lastTap = 0;
+document.body.addEventListener("touchend", e => {
+    const now = Date.now();
+    if (now - lastTap < 300) {
+        secretMenu.style.display = "block";
+    }
+    lastTap = now;
+});
+
+// Animation switch
+function switchImage() {
+    showingAfter = !showingAfter;
+    imgAfter.style.opacity = showingAfter ? "1" : "0";
 }
 
-/* Gyroscope */
-let motionEnabled = false;
+// Détection mouvement robuste
 let sequence = [];
-let lastStepTime = 0;
-
 const LEFT_THRESHOLD = -30;
 const RIGHT_THRESHOLD = 30;
-const TIME_RESET = 2000;
 
-let currentSide = "CENTER";
+function processTilt(gamma) {
+    let side = "CENTER";
+    if (gamma < LEFT_THRESHOLD) side = "LEFT";
+    if (gamma > RIGHT_THRESHOLD) side = "RIGHT";
 
-async function enableMotionIfNeeded() {
-  if (motionEnabled) return;
+    const last = sequence[sequence.length - 1];
+    if (side !== "CENTER" && side !== last) {
+        sequence.push(side);
+        if (sequence.length > 6) sequence.shift();
 
-  if (typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function") {
-    try {
-      const res = await DeviceOrientationEvent.requestPermission();
-      if (res === "granted") {
-        window.addEventListener("deviceorientation", handleOrientation);
-        motionEnabled = true;
-      }
-    } catch (e) {}
-  } else {
-    window.addEventListener("deviceorientation", handleOrientation);
-    motionEnabled = true;
-  }
-
-  if (!gyroCheckStarted) {
-    gyroCheckStarted = true;
-
-    setTimeout(() => {
-      if (!gyroDetected) {
-        gyroWarning.style.display = "block";
-      }
-    }, 3000);
-  }
-}
-
-document.addEventListener("touchstart", enableMotionIfNeeded);
-
-function handleOrientation(event) {
-  const gamma = event.gamma ?? 0;
-  const beta = event.beta ?? 0;
-  const now = Date.now();
-
-  if (Math.abs(gamma) > 0.1 || Math.abs(beta) > 0.1) {
-    gyroDetected = true;
-  }
-
-  let side = "CENTER";
-  if (gamma < LEFT_THRESHOLD) side = "L";
-  else if (gamma > RIGHT_THRESHOLD) side = "R";
-
-  if (now - lastStepTime > TIME_RESET) {
-    sequence = [];
-  }
-
-  if (side !== currentSide && (side === "L" || side === "R")) {
-    sequence.push(side);
-    lastStepTime = now;
-
-    if (sequence.length > 6) sequence.shift();
-
-    const target = ["L","R","L","R","L","R"];
-    if (sequence.length === 6 &&
-        sequence.every((v,i)=>v===target[i])) {
-      sequence = [];
-      switchImages();
+        const pattern = sequence.join("");
+        if (pattern === "LEFTRIGHTLEFTRIGHTLEFTRIGHT") {
+            switchImage();
+            sequence = [];
+        }
     }
-  }
-
-  currentSide = side;
 }
+
+// Détection inertie
+let motionDetected = false;
+let lastMotionTime = Date.now();
+
+function markMotion() {
+    motionDetected = true;
+    lastMotionTime = Date.now();
+}
+
+// Listener orientation
+function handleOrientation(event) {
+    if (event.gamma === null) return;
+    markMotion();
+    processTilt(event.gamma);
+}
+
+// Listener motion
+function handleMotion(event) {
+    if (!event.accelerationIncludingGravity) return;
+    const a = event.accelerationIncludingGravity;
+    if (Math.abs(a.x) > 0.5 || Math.abs(a.y) > 0.5) {
+        markMotion();
+    }
+}
+
+// Vérification capteurs actifs
+setInterval(() => {
+    if (!motionDetected && Date.now() - lastMotionTime > 3000) {
+        permissionBox.style.display = "block";
+    }
+}, 2000);
+
+// Permissions iOS
+async function requestMotionPermission() {
+    try {
+        if (typeof DeviceMotionEvent !== "undefined" &&
+            typeof DeviceMotionEvent.requestPermission === "function") {
+            const res = await DeviceMotionEvent.requestPermission();
+            if (res !== "granted") return;
+        }
+
+        if (typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function") {
+            const res = await DeviceOrientationEvent.requestPermission();
+            if (res !== "granted") return;
+        }
+
+        permissionBox.style.display = "none";
+        startSensors();
+    } catch (e) {
+        alert("Impossible d'activer les capteurs.");
+    }
+}
+
+document.getElementById("enableMotion").onclick = requestMotionPermission;
+
+// Démarrage capteurs
+function startSensors() {
+    window.addEventListener("deviceorientation", handleOrientation);
+    window.addEventListener("devicemotion", handleMotion);
+}
+
+// Android / navigateurs compatibles
+startSensors();
 </script>
 
 </body>
 </html>
-```
