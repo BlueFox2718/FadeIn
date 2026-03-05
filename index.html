@@ -27,9 +27,9 @@ html, body {
 
 img.display {
     position: absolute;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
     transition: opacity 0.6s ease;
 }
 
@@ -119,7 +119,7 @@ const permissionBox = document.getElementById("permissionBox");
 let showingAfter = false;
 let transformationLocked = false;
 
-// Charger images depuis localStorage
+// Charger images
 function loadImages() {
     const before = localStorage.getItem(STORAGE_BEFORE);
     const after = localStorage.getItem(STORAGE_AFTER);
@@ -131,7 +131,7 @@ function loadImages() {
 }
 loadImages();
 
-// Upload images
+// Convertir fichier en base64
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -142,6 +142,7 @@ function fileToBase64(file) {
 }
 
 document.getElementById("validateBtn").onclick = async () => {
+
     const beforeFile = document.getElementById("beforeInput").files[0];
     const afterFile = document.getElementById("afterInput").files[0];
 
@@ -167,8 +168,9 @@ document.getElementById("refreshBtn").onclick = () => {
     location.reload();
 };
 
-// Double tap detection
+// Double tap
 let lastTap = 0;
+
 document.body.addEventListener("touchend", e => {
     const now = Date.now();
     if (now - lastTap < 300) {
@@ -177,8 +179,9 @@ document.body.addEventListener("touchend", e => {
     lastTap = now;
 });
 
-// Animation switch
+// Transition
 function switchImage() {
+
     if (transformationLocked) return;
 
     showingAfter = true;
@@ -187,8 +190,9 @@ function switchImage() {
     transformationLocked = true;
 }
 
-// Détection mouvement robuste
+// Détection mouvement
 let sequence = [];
+
 const LEFT_THRESHOLD = -30;
 const RIGHT_THRESHOLD = 30;
 
@@ -197,15 +201,20 @@ function processTilt(gamma) {
     if (transformationLocked) return;
 
     let side = "CENTER";
+
     if (gamma < LEFT_THRESHOLD) side = "LEFT";
     if (gamma > RIGHT_THRESHOLD) side = "RIGHT";
 
     const last = sequence[sequence.length - 1];
+
     if (side !== "CENTER" && side !== last) {
+
         sequence.push(side);
+
         if (sequence.length > 6) sequence.shift();
 
         const pattern = sequence.join("");
+
         if (pattern === "LEFTRIGHTLEFTRIGHTLEFTRIGHT") {
             switchImage();
             sequence = [];
@@ -222,46 +231,56 @@ function markMotion() {
     lastMotionTime = Date.now();
 }
 
-// Listener orientation
 function handleOrientation(event) {
+
     if (event.gamma === null) return;
+
     markMotion();
     processTilt(event.gamma);
 }
 
-// Listener motion
 function handleMotion(event) {
+
     if (!event.accelerationIncludingGravity) return;
+
     const a = event.accelerationIncludingGravity;
+
     if (Math.abs(a.x) > 0.5 || Math.abs(a.y) > 0.5) {
         markMotion();
     }
 }
 
-// Vérification capteurs actifs
+// Vérification capteurs
 setInterval(() => {
+
     if (!motionDetected && Date.now() - lastMotionTime > 3000) {
         permissionBox.style.display = "block";
     }
+
 }, 2000);
 
 // Permissions iOS
 async function requestMotionPermission() {
+
     try {
+
         if (typeof DeviceMotionEvent !== "undefined" &&
             typeof DeviceMotionEvent.requestPermission === "function") {
+
             const res = await DeviceMotionEvent.requestPermission();
             if (res !== "granted") return;
         }
 
         if (typeof DeviceOrientationEvent !== "undefined" &&
             typeof DeviceOrientationEvent.requestPermission === "function") {
+
             const res = await DeviceOrientationEvent.requestPermission();
             if (res !== "granted") return;
         }
 
         permissionBox.style.display = "none";
         startSensors();
+
     } catch (e) {
         alert("Impossible d'activer les capteurs.");
     }
@@ -269,13 +288,12 @@ async function requestMotionPermission() {
 
 document.getElementById("enableMotion").onclick = requestMotionPermission;
 
-// Démarrage capteurs
+// Start sensors
 function startSensors() {
     window.addEventListener("deviceorientation", handleOrientation);
     window.addEventListener("devicemotion", handleMotion);
 }
 
-// Android / navigateurs compatibles
 startSensors();
 </script>
 
