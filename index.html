@@ -29,8 +29,12 @@ img.display {
     position: absolute;
     width: 100vw;
     height: 100vh;
-    object-fit: cover;
+    object-fit: contain;
     transition: opacity 0.6s ease;
+}
+
+#imgBefore {
+    opacity: 1;
 }
 
 #imgAfter {
@@ -131,7 +135,7 @@ function loadImages() {
 }
 loadImages();
 
-// Convertir fichier en base64
+// Convertir fichier
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -171,11 +175,13 @@ document.getElementById("refreshBtn").onclick = () => {
 // Double tap
 let lastTap = 0;
 
-document.body.addEventListener("touchend", e => {
+document.body.addEventListener("touchend", () => {
     const now = Date.now();
+
     if (now - lastTap < 300) {
         secretMenu.style.display = "block";
     }
+
     lastTap = now;
 });
 
