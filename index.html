@@ -97,6 +97,7 @@ button {
 
         <button id="validateBtn">Valider</button>
         <button id="cancelBtn">Annuler</button>
+        <button id="refreshBtn">Rafraîchir</button>
     </div>
 </div>
 
@@ -116,6 +117,7 @@ const secretMenu = document.getElementById("secretMenu");
 const permissionBox = document.getElementById("permissionBox");
 
 let showingAfter = false;
+let transformationLocked = false;
 
 // Charger images depuis localStorage
 function loadImages() {
@@ -161,6 +163,10 @@ document.getElementById("cancelBtn").onclick = () => {
     secretMenu.style.display = "none";
 };
 
+document.getElementById("refreshBtn").onclick = () => {
+    location.reload();
+};
+
 // Double tap detection
 let lastTap = 0;
 document.body.addEventListener("touchend", e => {
@@ -173,8 +179,12 @@ document.body.addEventListener("touchend", e => {
 
 // Animation switch
 function switchImage() {
-    showingAfter = !showingAfter;
-    imgAfter.style.opacity = showingAfter ? "1" : "0";
+    if (transformationLocked) return;
+
+    showingAfter = true;
+    imgAfter.style.opacity = "1";
+
+    transformationLocked = true;
 }
 
 // Détection mouvement robuste
@@ -183,6 +193,9 @@ const LEFT_THRESHOLD = -30;
 const RIGHT_THRESHOLD = 30;
 
 function processTilt(gamma) {
+
+    if (transformationLocked) return;
+
     let side = "CENTER";
     if (gamma < LEFT_THRESHOLD) side = "LEFT";
     if (gamma > RIGHT_THRESHOLD) side = "RIGHT";
